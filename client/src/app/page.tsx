@@ -2,20 +2,25 @@
 
 import { useEffect, useState } from "react";
 
+type User = {
+  id: number;
+  name: string;
+};
+
 export default function Home() {
-  const [data, setData] = useState();
+  const [users, setUsers] = useState<User[]>([]);
 
   const getApi = async () => {
     try {
       const response = await fetch("http://localhost:8080/hoge");
-      const a = await response.json();
-      setData(a);
+      const data = await response.json();
+      setUsers(data);
     } catch (error) {
       console.log(error);
     }
   };
 
-  console.log(data);
+  console.log(users);
 
   useEffect(() => {
     getApi();
@@ -25,6 +30,9 @@ export default function Home() {
     <>
       <div>
         <h1>Hello World!!</h1>
+        {users.map((user) => {
+          return <div key={user.id}>{user.name}</div>;
+        })}
       </div>
     </>
   );
