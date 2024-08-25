@@ -33,6 +33,7 @@ type DeleteTaskHandler struct {}
 
 type SignUpHandler struct {}
 type SignInHandler struct {}
+type GetUsersHandler struct {}
 type GetMeHandler struct {}
 
 
@@ -49,7 +50,7 @@ func connectDB() (*sql.DB, error) {
 }
 
 
-func (h *GetTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -79,6 +80,41 @@ func (h *GetTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rows.Close()
 
 	response, _ := json.Marshal(users)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
+}
+
+func (h *GetTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	connection, err := connectDB()
+	if err != nil {
+		panic(err)
+	}
+	defer connection.Close()
+
+	rows, err := connection.Query("select * from task;")
+	if err != nil {
+		fmt.Println("Error executing query:", err)
+		return
+	}
+
+	tasks := []Task{}
+
+	for rows.Next() {
+		task := Task{}
+		rows.Scan(&task.Id, &task.UserId, &task.Title)
+		tasks = append(tasks, task)
+	}
+
+	rows.Close()
+
+	response, _ := json.Marshal(tasks)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -306,20 +342,20 @@ func main() {
 		(&SignInHandler{}).ServeHTTP(w, r)
 	})))
 
-	// http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-	// 	switch r.Method {
-	// 	case http.MethodGet:
-	// 		// TODO: Implement GetMeHandler
-	// 	case http.MethodPost:
-	// 		// TODO: Implement AddTaskHandler
-	// 	case http.MethodPut:
-	// 		// TODO: Implement EditTaskHandler
-	// 	case http.MethodDelete:
-	// 		// TODO: Implement DeleteTaskHandler
-	// 	default:
-	// 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	// 	}
-	// })
+	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			(&GetUsersHandler{}).ServeHTTP(w, r)
+		case http.MethodPost:
+			// TODO: Implement AddTaskHandler
+		case http.MethodPut:
+			// TODO: Implement EditTaskHandler
+		case http.MethodDelete:
+			// TODO: Implement DeleteTaskHandler
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 
 	server := http.Server{
