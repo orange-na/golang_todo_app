@@ -11,10 +11,7 @@ import (
 	"github.com/rs/cors"
 )
 
-type Student struct {
-	ID int `json:"id"`
-	Name string `json:"name"`
-}
+
 
 type User struct {
 	Id string `json:"id"`
@@ -28,9 +25,6 @@ type Task struct {
 	Title string `json:"title"`
 }
 
-type HelloHandler struct {}
-type HogeHandler struct {}
-type FugaHandler struct {}
 
 type GetTasksHandler struct {}
 type AddTaskHandler struct {}
@@ -54,37 +48,6 @@ func connectDB() (*sql.DB, error) {
 	return sql.Open("mysql", dsn)
 }
 
-func (h *HelloHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	connection, err := connectDB()
-	if err != nil {
-		panic(err)
-	}
-	defer connection.Close()
-
-	rows, err := connection.Query("select * from user;")
-    // rows, err := connection.Query("INSERT INTO students (id, name) VALUES (1, 'Yuto');")
-	if err != nil {
-		fmt.Println("Error executing query:", err)
-		return
-	}
-
-
-	users := []User{}
-	
-	for rows.Next() {
-		user := User{}
-		rows.Scan(&user.Id, &user.Name, &user.Password)
-		users = append(users, user)
-	}
-	
-	rows.Close()
-
-	response, _ := json.Marshal(users)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(response)
-}
 
 func (h *GetTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -229,46 +192,64 @@ func (h *SignUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer connection.Close()
 
-	id := uuid.New().String()
-	name := r.FormValue("name")
-	password := r.FormValue("password")
+    var user User
+    err = json.NewDecoder(r.Body).Decode(&user)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
 
-	_, err = connection.Exec("INSERT INTO user (id, name, password) VALUES (?, ?, ?)", id, name, password)
+	user.Id = uuid.New().String()
 
+	_, err = connection.Exec("INSERT INTO user (id, name, password) VALUES (?, ?, ?)", user.Id, user.Name, user.Password)
 	if err != nil {
 		fmt.Println("Error executing query:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
 }
 
-func (h *HogeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+func (h *SignInHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	connection, err := connectDB()
 	if err != nil {
 		panic(err)
 	}
 	defer connection.Close()
 
-	rows, err := connection.Query("select * from students;")
-    // rows, err := connection.Query("INSERT INTO students (id, name) VALUES (1, 'Yuto');")
+    var user User
+    err = json.NewDecoder(r.Body).Decode(&user)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+	}
+
+	rows, err := connection.Query("select * from user where name = ? and password = ?", user.Name, user.Password)
 	if err != nil {
 		fmt.Println("Error executing query:", err)
 		return
 	}
 
-	students := []Student{}
-	
+	users := []User{}
+
 	for rows.Next() {
-		student := Student{}
-		rows.Scan(&student.ID, &student.Name)
-		students = append(students, student)
+		user := User{}
+		rows.Scan(&user.Id, &user.Name, &user.Password)
+		users = append(users, user)
 	}
-	
+
 	rows.Close()
 
-	response, _ := json.Marshal(students)
+	response, _ := json.Marshal(users)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -277,17 +258,15 @@ func (h *HogeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 
 
-func (h *FugaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "fuga")
-}
+
 
 func main() {
 
 	// HelloHandler 型の変数を宣言
-	handler := HelloHandler{}
-	hogeHandler := HogeHandler{}
-	fugaHandler := FugaHandler{}
-	getTasksHandler := GetTasksHandler{}
+	// handler := HelloHandler{}
+	// hogeHandler := HogeHandler{}
+	// fugaHandler := FugaHandler{}
+	// getTasksHandler := GetTasksHandler{}
 
 	// CORSの設定
 	c := cors.New(cors.Options{
@@ -295,16 +274,11 @@ func main() {
 	    AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // 許可するHTTPメソッドを指定
 		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}, // 許可するHTTPヘッダを指定
 	})
-	
-	// ハンドラにCORSの設定を適用
-	http.Handle("/", c.Handler(&handler))
-	http.Handle("/hoge", c.Handler(&hogeHandler))
-	http.Handle("/fuga", c.Handler(&fugaHandler))
 
-	http.HandleFunc("/tasks", func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/tasks", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			getTasksHandler.ServeHTTP(w, r)
+			(&GetTasksHandler{}).ServeHTTP(w, r)
 		case http.MethodPost:
 			(&AddTaskHandler{}).ServeHTTP(w, r) 
 		case http.MethodPut:
@@ -314,22 +288,38 @@ func main() {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	})))
 
-	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			getTasksHandler.ServeHTTP(w, r)
-		case http.MethodPost:
-			// TODO: Implement AddTaskHandler
-		case http.MethodPut:
-			// TODO: Implement EditTaskHandler
-		case http.MethodDelete:
-			// TODO: Implement DeleteTaskHandler
-		default:
+	http.Handle("/sign-up", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
-	})
+		(&SignUpHandler{}).ServeHTTP(w, r)
+	})))
+
+	http.Handle("/sign-in", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		(&SignInHandler{}).ServeHTTP(w, r)
+	})))
+
+	// http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+	// 	switch r.Method {
+	// 	case http.MethodGet:
+	// 		// TODO: Implement GetMeHandler
+	// 	case http.MethodPost:
+	// 		// TODO: Implement AddTaskHandler
+	// 	case http.MethodPut:
+	// 		// TODO: Implement EditTaskHandler
+	// 	case http.MethodDelete:
+	// 		// TODO: Implement DeleteTaskHandler
+	// 	default:
+	// 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	// 	}
+	// })
 
 
 	server := http.Server{
