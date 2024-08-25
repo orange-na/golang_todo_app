@@ -156,17 +156,23 @@ func (h *AddTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 
 func (h *EditTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPut {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	taskId := r.URL.Path[len("/tasks/"):]
+	if taskId == "" {
+		http.Error(w, "Task ID is required", http.StatusBadRequest)
+		return
+	}
 
 	var task Task
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
-        http.Error(w, err.Error(), http.StatusBadRequest)
-        return
-    }
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	connection, err := connectDB()
 	if err != nil {
@@ -174,7 +180,7 @@ func (h *EditTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer connection.Close()
 
-	_, err = connection.Exec("UPDATE task SET title = ? WHERE id = ?", task.Title, task.Id)
+	_, err = connection.Exec("UPDATE task SET title = ? WHERE id = ?", task.Title, taskId)
 	if err != nil {
 		fmt.Println("Error executing query:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -183,6 +189,7 @@ func (h *EditTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(task)
 }
 
 func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -191,28 +198,27 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-	var task Task
-	err := json.NewDecoder(r.Body).Decode(&task)
-	if err != nil {
-        http.Error(w, err.Error(), http.StatusBadRequest)
+    taskId := r.URL.Path[len("/tasks/"):]
+    if taskId == "" {
+        http.Error(w, "Task ID is required", http.StatusBadRequest)
         return
     }
 
-	connection, err := connectDB()
-	if err != nil {
-		panic(err)
-	}
-	defer connection.Close()
+    connection, err := connectDB()
+    if err != nil {
+        panic(err)
+    }
+    defer connection.Close()
 
-	_, err = connection.Exec("DELETE FROM task WHERE id = ?", task.Id)
-	if err != nil {
-		fmt.Println("Error executing query:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+    _, err = connection.Exec("DELETE FROM task WHERE id = ?", taskId)
+    if err != nil {
+        fmt.Println("Error executing query:", err)
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        return
+    }
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
 }
 
 
@@ -311,20 +317,27 @@ func main() {
 		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}, // 許可するHTTPヘッダを指定
 	})
 
-	http.Handle("/tasks", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			(&GetTasksHandler{}).ServeHTTP(w, r)
-		case http.MethodPost:
-			(&AddTaskHandler{}).ServeHTTP(w, r) 
-		case http.MethodPut:
-			(&EditTaskHandler{}).ServeHTTP(w, r)
-		case http.MethodDelete:
-			(&DeleteTaskHandler{}).ServeHTTP(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})))
+    http.Handle("/tasks", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        switch r.Method {
+        case http.MethodGet:
+            (&GetTasksHandler{}).ServeHTTP(w, r)
+        case http.MethodPost:
+            (&AddTaskHandler{}).ServeHTTP(w, r)
+        default:
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        }
+    })))
+
+    http.Handle("/tasks/", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        switch r.Method {
+        case http.MethodPut:
+            (&EditTaskHandler{}).ServeHTTP(w, r)
+        case http.MethodDelete:
+            (&DeleteTaskHandler{}).ServeHTTP(w, r)
+        default:
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        }
+    })))
 
 	http.Handle("/sign-up", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

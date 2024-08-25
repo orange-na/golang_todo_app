@@ -43,6 +43,30 @@ export default function Home() {
     }
   };
 
+  const editTask = async (taskId: string, newTitle: string) => {
+    try {
+      await axios.put(`http://localhost:8080/tasks/${taskId}`, {
+        title: newTitle,
+      });
+      setTasks(
+        tasks.map((task) =>
+          task.id === taskId ? { ...task, title: newTitle } : task
+        )
+      );
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    try {
+      await axios.delete(`http://localhost:8080/tasks/${taskId}`);
+      setTasks(tasks.filter((task) => task.id !== taskId));
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   console.log(users);
   console.log(tasks);
 
@@ -57,16 +81,35 @@ export default function Home() {
         {tasks.map((task) => (
           <li
             key={task.id}
-            className="flex items-center space-x-2 bg-gray-100 p-2 rounded"
+            className="flex items-center justify-between bg-gray-100 p-2 rounded"
           >
-            <input
-              type="checkbox"
-              className="form-checkbox h-5 w-5 text-blue-600"
-            />
-            <span className="text-gray-800">{task.title}</span>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                className="form-checkbox h-5 w-5 text-blue-600"
+              />
+              <span className="text-gray-800">{task.title}</span>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                className="bg-blue-500 text-white px-2 py-1 rounded"
+                onClick={() =>
+                  editTask(task.id, prompt("Enter new title") || task.title)
+                }
+              >
+                Edit
+              </button>
+              <button
+                className="bg-red-500 text-white px-2 py-1 rounded"
+                onClick={() => deleteTask(task.id)}
+              >
+                Delete
+              </button>
+            </div>
           </li>
         ))}
       </ul>
+
       <div className="mt-4">
         <input
           type="text"
