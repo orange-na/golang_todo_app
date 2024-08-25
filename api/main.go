@@ -303,13 +303,6 @@ func (h *SignInHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 
 func main() {
-
-	// HelloHandler 型の変数を宣言
-	// handler := HelloHandler{}
-	// hogeHandler := HogeHandler{}
-	// fugaHandler := FugaHandler{}
-	// getTasksHandler := GetTasksHandler{}
-
 	// CORSの設定
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"}, // 許可するオリジンを指定。"*"は全てのオリジンを許可
