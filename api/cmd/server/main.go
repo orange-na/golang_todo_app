@@ -11,7 +11,6 @@ import (
 )
 
 func Run() {
-	// データベース接続
 	db, err := db.ConnectDB()
 	if err != nil {
 		panic(err)
@@ -26,14 +25,12 @@ func Run() {
 	taskHandler := handler.NewTaskHandler(taskRepo)
 	userHandler := handler.NewUserHandler(userRepo)
 
-	// CORSの設定
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
 	})
 
-	// ルーティング
 	http.Handle("/tasks", c.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -59,7 +56,6 @@ func Run() {
 	http.Handle("/sign-in", c.Handler(http.HandlerFunc(userHandler.SignIn)))
 	http.Handle("/users", c.Handler(http.HandlerFunc(userHandler.GetUsers)))
 
-	// サーバーの起動
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: nil,
